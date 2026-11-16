@@ -12,6 +12,8 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon-512.png">
 <link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://script.google.com">
+<link rel="preconnect" href="https://script.googleusercontent.com">
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:#f4f4f1;font-family:ui-rounded,"SF Pro Rounded",system-ui,-apple-system,sans-serif;color:#12182b}
@@ -32,6 +34,10 @@ p{margin:0}.mu{color:#5f6882;font-size:14px;line-height:1.5}
 button{font:inherit;cursor:pointer;display:block;width:100%;max-width:440px;margin:12px auto 0;height:50px;border-radius:16px;font-weight:800;border:none}
 .go{background:linear-gradient(180deg,#5b9ff0,#2f7de1);color:#fff;box-shadow:0 10px 24px rgba(47,125,225,.35)}
 .ghost{background:transparent;color:#5f6882;height:42px;font-weight:700;font-size:13px}
+#sp{position:fixed;inset:0;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;transition:opacity .3s}
+#sp img{width:104px;height:104px;border-radius:28px;object-fit:cover;box-shadow:0 14px 34px rgba(47,125,225,.35);animation:b 2.4s ease-in-out infinite}
+#sp span{font-size:14px;font-weight:700;color:#98a1bd}
+#f{z-index:2;opacity:0;transition:opacity .25s}#f.ok{opacity:1}
 #nb{position:fixed;left:12px;right:12px;bottom:calc(92px + env(safe-area-inset-bottom));z-index:50;max-width:440px;margin:0 auto;background:#161b2b;color:#f1f3fa;border:1px solid #2a3148;border-radius:20px;padding:14px;box-shadow:0 16px 40px rgba(0,0,0,.45);display:flex;flex-wrap:wrap;gap:8px;text-align:left;animation:nbin .35s ease}
 @keyframes nbin{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 #nb div{flex:1 1 100%}#nb b{display:block;font-size:15px}#nb span{display:block;font-size:13px;color:#98a1bd;margin-top:2px;line-height:1.4}
@@ -65,8 +71,14 @@ try { done = localStorage.getItem('tutau_installed') === '1'; skip = sessionStor
 function startApp() {
   var g = document.getElementById('g'); g.style.display = 'none';
   if (document.getElementById('f')) return;
+  // Écran d'accueil pendant que l'appli se charge
+  var sp = document.createElement('div'); sp.id = 'sp';
+  sp.innerHTML = '<img src="' + AV + '" alt=""><span>Tutau arrive…</span>';
+  document.body.appendChild(sp);
   var f = document.createElement('iframe');
   f.id = 'f'; f.allow = 'camera; clipboard-write';
+  f.onload = function () { setTimeout(showApp, 1500); };
+  setTimeout(showApp, 8000);
   f.src = APPS_URL + (APPS_URL.indexOf('?') > -1 ? '&' : '?') + 'k=' + encodeURIComponent(k) + (u ? '&u=' + encodeURIComponent(u) : '');
   document.body.appendChild(f);
 }
@@ -93,6 +105,11 @@ function guide() {
 }
 
 // Notifications (OneSignal) + pastille rouge sur l'icône. L'appli envoie l'identifiant OneSignal une fois configuré dans Apps Script.
+function showApp() {
+  var f = document.getElementById('f'), sp = document.getElementById('sp');
+  if (f) f.className = 'ok';
+  if (sp && !sp.dataset.off) { sp.dataset.off = '1'; sp.style.opacity = '0'; setTimeout(function () { if (sp.parentNode) sp.parentNode.removeChild(sp); }, 400); }
+}
 var osStarted = false;
 function badge(n) { try { if (n > 0 && navigator.setAppBadge) navigator.setAppBadge(n); else if (navigator.clearAppBadge) navigator.clearAppBadge(); } catch (e) { } }
 function initPush(appId, who) {
@@ -124,6 +141,7 @@ window.addEventListener('message', function (e) {
   if (!d || typeof d !== 'object' || !d.tutau) return;
   if (d.tutau === 'badge') badge(Number(d.n) || 0);
   if (d.tutau === 'me') {
+    showApp();
     if (d.u && !u) { u = String(d.u).replace(/[^a-z]/g, ''); try { localStorage.setItem('tutau_u', u); } catch (x) { } }
     initPush(d.os, d.u || u);
   }
