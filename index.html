@@ -11,6 +11,7 @@
 <meta name="theme-color" content="#0a1020">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon-512.png">
+<link rel="manifest" href="manifest.json">
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:#f4f4f1;font-family:ui-rounded,"SF Pro Rounded",system-ui,-apple-system,sans-serif;color:#12182b}
@@ -31,6 +32,10 @@ p{margin:0}.mu{color:#5f6882;font-size:14px;line-height:1.5}
 button{font:inherit;cursor:pointer;display:block;width:100%;max-width:440px;margin:12px auto 0;height:50px;border-radius:16px;font-weight:800;border:none}
 .go{background:linear-gradient(180deg,#5b9ff0,#2f7de1);color:#fff;box-shadow:0 10px 24px rgba(47,125,225,.35)}
 .ghost{background:transparent;color:#5f6882;height:42px;font-weight:700;font-size:13px}
+#nb{position:fixed;left:12px;right:12px;bottom:calc(92px + env(safe-area-inset-bottom));z-index:50;max-width:440px;margin:0 auto;background:#161b2b;color:#f1f3fa;border:1px solid #2a3148;border-radius:20px;padding:14px;box-shadow:0 16px 40px rgba(0,0,0,.45);display:flex;flex-wrap:wrap;gap:8px;text-align:left;animation:nbin .35s ease}
+@keyframes nbin{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+#nb div{flex:1 1 100%}#nb b{display:block;font-size:15px}#nb span{display:block;font-size:13px;color:#98a1bd;margin-top:2px;line-height:1.4}
+#nb button{flex:1;width:auto;margin:0;height:42px;font-size:14px}#nb #nb1{background:linear-gradient(180deg,#5b9ff0,#2f7de1);color:#fff}#nb #nb2{background:transparent;color:#98a1bd}
 </style>
 </head>
 <body>
@@ -50,6 +55,10 @@ try { standalone = navigator.standalone === true || (window.matchMedia && matchM
 var k = '';
 try { k = new URLSearchParams(location.search).get('k') || localStorage.getItem('tutau_k') || ''; if (k) localStorage.setItem('tutau_k', k); } catch (e) { }
 
+// Lien perso (…&u=maylee) : l'appli sait qui l'utilise, sans demander le prénom
+var u = '';
+try { u = String(new URLSearchParams(location.search).get('u') || localStorage.getItem('tutau_u') || '').toLowerCase().replace(/[^a-z]/g, ''); if (u) localStorage.setItem('tutau_u', u); } catch (e) { }
+
 var done = false, skip = false;
 try { done = localStorage.getItem('tutau_installed') === '1'; skip = sessionStorage.getItem('tutau_skip') === '1'; } catch (e) { }
 
@@ -58,7 +67,7 @@ function startApp() {
   if (document.getElementById('f')) return;
   var f = document.createElement('iframe');
   f.id = 'f'; f.allow = 'camera; clipboard-write';
-  f.src = APPS_URL + (k ? (APPS_URL.indexOf('?') > -1 ? '&' : '?') + 'k=' + encodeURIComponent(k) : '');
+  f.src = APPS_URL + (APPS_URL.indexOf('?') > -1 ? '&' : '?') + 'k=' + encodeURIComponent(k) + (u ? '&u=' + encodeURIComponent(u) : '');
   document.body.appendChild(f);
 }
 
@@ -82,6 +91,43 @@ function guide() {
   document.getElementById('b2').onclick = function () { try { sessionStorage.setItem('tutau_skip', '1'); } catch (e) { } startApp(); };
   document.getElementById('b3').onclick = function () { try { localStorage.setItem('tutau_installed', '1'); } catch (e) { } startApp(); };
 }
+
+// Notifications (OneSignal) + pastille rouge sur l'icône. L'appli envoie l'identifiant OneSignal une fois configuré dans Apps Script.
+var osStarted = false;
+function badge(n) { try { if (n > 0 && navigator.setAppBadge) navigator.setAppBadge(n); else if (navigator.clearAppBadge) navigator.clearAppBadge(); } catch (e) { } }
+function initPush(appId, who) {
+  if (osStarted || !appId) return;
+  if (isIOS && !standalone) return; // sur iPhone, les notifications ne marchent que dans l'appli installée sur l'écran d'accueil
+  osStarted = true;
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  var s = document.createElement('script'); s.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js'; s.defer = true; document.head.appendChild(s);
+  OneSignalDeferred.push(async function (OneSignal) {
+    await OneSignal.init({ appId: appId, serviceWorkerPath: 'tutau/OneSignalSDKWorker.js', serviceWorkerParam: { scope: '/tutau/' }, notifyButton: { enable: false } });
+    if (who) { try { await OneSignal.login(who); } catch (e) { } }
+    if (OneSignal.Notifications.permission) return;
+    var off = 0; try { off = Number(localStorage.getItem('tutau_notif_off') || 0); } catch (e) { }
+    if (Date.now() - off < 5 * 864e5 || document.getElementById('nb')) return;
+    var b = document.createElement('div'); b.id = 'nb';
+    b.innerHTML = '<div><b>🔔 Activer les notifications</b><span>Tutau te prévient quand un colis bouge, avec une pastille rouge sur l\'icône.</span></div><button id="nb1">Activer</button><button id="nb2">Plus tard</button>';
+    document.body.appendChild(b);
+    document.getElementById('nb1').onclick = function () {
+      b.parentNode && b.parentNode.removeChild(b);
+      OneSignal.Notifications.requestPermission().then(function () { if (who) return OneSignal.login(who); }).catch(function () { });
+    };
+    document.getElementById('nb2').onclick = function () { b.parentNode && b.parentNode.removeChild(b); try { localStorage.setItem('tutau_notif_off', String(Date.now())); } catch (e) { } };
+  });
+}
+window.addEventListener('message', function (e) {
+  var host = ''; try { host = new URL(e.origin).hostname; } catch (x) { }
+  if (!/\.googleusercontent\.com$/.test(host)) return;
+  var d = e.data;
+  if (!d || typeof d !== 'object' || !d.tutau) return;
+  if (d.tutau === 'badge') badge(Number(d.n) || 0);
+  if (d.tutau === 'me') {
+    if (d.u && !u) { u = String(d.u).replace(/[^a-z]/g, ''); try { localStorage.setItem('tutau_u', u); } catch (x) { } }
+    initPush(d.os, d.u || u);
+  }
+});
 
 if (APPS_URL.indexOf('http') !== 0) {
   document.body.innerHTML = '<p style="padding:40px 24px;text-align:center;color:#888">Il manque le lien de l\'appli dans index.html.</p>';

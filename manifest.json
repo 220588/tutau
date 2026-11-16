@@ -1,0 +1,11 @@
+{
+  "name": "Tutau",
+  "short_name": "Tutau",
+  "display": "standalone",
+  "background_color": "#0a0c12",
+  "theme_color": "#0a1020",
+  "icons": [
+    { "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
