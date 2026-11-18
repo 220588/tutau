@@ -123,16 +123,25 @@ function showApp() {
 }
 var osStarted = false;
 function badge(n) { try { if (n > 0 && navigator.setAppBadge) navigator.setAppBadge(n); else if (navigator.clearAppBadge) navigator.clearAppBadge(); } catch (e) { } }
+function diag(o) { try { var im = new Image(); im.src = APPS_URL + '?k=' + encodeURIComponent(k) + '&u=' + encodeURIComponent(u || '') + '&diag=' + encodeURIComponent(JSON.stringify(o).slice(0, 1400)); } catch (e) { } }
+function rep(OS, w) {
+  var ps = {}, o = { w: w || 'init' };
+  try { ps = OS.User.PushSubscription; } catch (e) { }
+  try { o.p = (window.Notification && Notification.permission) || 'none'; o.osp = OS.Notifications.permission; o.opt = ps.optedIn; o.id = ps.id || ''; o.tok = ps.token ? String(ps.token).slice(0, 60) : ''; o.ext = OS.User.externalId || ''; } catch (e) { o.err = String(e); }
+  o.st = standalone; o.pm = !!window.PushManager; o.ua = navigator.userAgent.slice(0, 110);
+  try { navigator.serviceWorker.getRegistrations().then(function (rs) { o.sw = rs.map(function (r) { return r.scope + (r.active ? ' A:' + r.active.scriptURL.split('/').pop() : ' -'); }); diag(o); }, function () { diag(o); }); } catch (e) { diag(o); }
+}
 function initPush(appId, who) {
   if (osStarted || !appId) return;
-  if (isIOS && !standalone) return; // sur iPhone, les notifications ne marchent que dans l'appli installée sur l'écran d'accueil
+  if (isIOS && !standalone) { diag({ w: 'pas-icone' }); return; } // sur iPhone, les notifications ne marchent que dans l'appli installée sur l'écran d'accueil
   osStarted = true;
   window.OneSignalDeferred = window.OneSignalDeferred || [];
   var s = document.createElement('script'); s.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js'; s.defer = true; document.head.appendChild(s);
   OneSignalDeferred.push(async function (OneSignal) {
-    await OneSignal.init({ appId: appId, serviceWorkerPath: 'tutau/OneSignalSDKWorker.js', serviceWorkerParam: { scope: '/tutau/' }, notifyButton: { enable: false } });
+    try { await OneSignal.init({ appId: appId, serviceWorkerPath: 'tutau/OneSignalSDKWorker.js', serviceWorkerParam: { scope: '/tutau/' }, notifyButton: { enable: false } }); } catch (er) { diag({ w: 'init-err', e: String(er && er.message || er) }); return; }
+    setTimeout(function () { rep(OneSignal, 'ouverture'); }, 7000);
     if (who) { try { await OneSignal.login(who); } catch (e) { } }
-    if (OneSignal.Notifications.permission) { try { if (!OneSignal.User.PushSubscription.optedIn) await OneSignal.User.PushSubscription.optIn(); } catch (e) { } return; }
+    if (OneSignal.Notifications.permission) { try { if (!OneSignal.User.PushSubscription.optedIn) await OneSignal.User.PushSubscription.optIn(); } catch (e) { diag({ w: 'optin-err', e: String(e && e.message || e) }); } return; }
     var off = ''; try { off = sessionStorage.getItem('tutau_notif_off') || ''; } catch (e) { }
     if (off || document.getElementById('nb')) return;
     var b = document.createElement('div'); b.id = 'nb';
@@ -141,7 +150,7 @@ function initPush(appId, who) {
     try { if (window.Notification && Notification.permission === 'denied') { b.querySelector('span').textContent = 'Les notifications sont bloquées : ouvre Réglages > Notifications > Tutau et active-les.'; b.removeChild(document.getElementById('nb1')); } } catch (e) { }
     if (document.getElementById('nb1')) document.getElementById('nb1').onclick = function () {
       b.parentNode && b.parentNode.removeChild(b);
-      OneSignal.Notifications.requestPermission().then(function () { try { return OneSignal.User.PushSubscription.optIn(); } catch (e) { } }).then(function () { if (who) return OneSignal.login(who); }).catch(function () { });
+      OneSignal.Notifications.requestPermission().then(function () { try { return OneSignal.User.PushSubscription.optIn(); } catch (e) { } }).then(function () { if (who) return OneSignal.login(who); }).catch(function (er) { diag({ w: 'clic-err', e: String(er && er.message || er) }); }).then(function () { setTimeout(function () { rep(OneSignal, 'clic'); }, 5000); });
     };
     document.getElementById('nb2').onclick = function () { b.parentNode && b.parentNode.removeChild(b); try { sessionStorage.setItem('tutau_notif_off', '1'); } catch (e) { } };
   });
