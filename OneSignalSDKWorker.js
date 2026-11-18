@@ -6,4 +6,4 @@ self.addEventListener('push', function (e) {
     if (self.navigator && self.navigator.setAppBadge) self.navigator.setAppBadge(n > 0 ? n : 1);
   } catch (x) { }
 });
-importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDKWorker.js');
+importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js');
