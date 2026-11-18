@@ -141,7 +141,7 @@ function initPush(appId, who) {
     try { await OneSignal.init({ appId: appId, serviceWorkerPath: 'tutau/OneSignalSDKWorker.js', serviceWorkerParam: { scope: '/tutau/' }, notifyButton: { enable: false } }); } catch (er) { diag({ w: 'init-err', e: String(er && er.message || er) }); return; }
     setTimeout(function () { rep(OneSignal, 'ouverture'); }, 7000);
     if (who) { try { await OneSignal.login(who); } catch (e) { } }
-    if (OneSignal.Notifications.permission) { try { if (!OneSignal.User.PushSubscription.optedIn) await OneSignal.User.PushSubscription.optIn(); } catch (e) { diag({ w: 'optin-err', e: String(e && e.message || e) }); } return; }
+    if (OneSignal.Notifications.permission) { try { var PS = OneSignal.User.PushSubscription; if (!PS.optedIn) await PS.optIn(); else if (!PS.token) { await PS.optOut(); await PS.optIn(); } } catch (e) { diag({ w: 'optin-err', e: String(e && e.message || e) }); } return; }
     var off = ''; try { off = sessionStorage.getItem('tutau_notif_off') || ''; } catch (e) { }
     if (off || document.getElementById('nb')) return;
     var b = document.createElement('div'); b.id = 'nb';
