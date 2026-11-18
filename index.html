@@ -132,7 +132,7 @@ function initPush(appId, who) {
   OneSignalDeferred.push(async function (OneSignal) {
     await OneSignal.init({ appId: appId, serviceWorkerPath: 'tutau/OneSignalSDKWorker.js', serviceWorkerParam: { scope: '/tutau/' }, notifyButton: { enable: false } });
     if (who) { try { await OneSignal.login(who); } catch (e) { } }
-    if (OneSignal.Notifications.permission) return;
+    if (OneSignal.Notifications.permission) { try { if (!OneSignal.User.PushSubscription.optedIn) await OneSignal.User.PushSubscription.optIn(); } catch (e) { } return; }
     var off = ''; try { off = sessionStorage.getItem('tutau_notif_off') || ''; } catch (e) { }
     if (off || document.getElementById('nb')) return;
     var b = document.createElement('div'); b.id = 'nb';
@@ -141,7 +141,7 @@ function initPush(appId, who) {
     try { if (window.Notification && Notification.permission === 'denied') { b.querySelector('span').textContent = 'Les notifications sont bloquées : ouvre Réglages > Notifications > Tutau et active-les.'; b.removeChild(document.getElementById('nb1')); } } catch (e) { }
     if (document.getElementById('nb1')) document.getElementById('nb1').onclick = function () {
       b.parentNode && b.parentNode.removeChild(b);
-      OneSignal.Notifications.requestPermission().then(function () { if (who) return OneSignal.login(who); }).catch(function () { });
+      OneSignal.Notifications.requestPermission().then(function () { try { return OneSignal.User.PushSubscription.optIn(); } catch (e) { } }).then(function () { if (who) return OneSignal.login(who); }).catch(function () { });
     };
     document.getElementById('nb2').onclick = function () { b.parentNode && b.parentNode.removeChild(b); try { sessionStorage.setItem('tutau_notif_off', '1'); } catch (e) { } };
   });
